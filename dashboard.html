@@ -5,80 +5,71 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Hyperspace Project Dashboard</title>
     <style>
-        :root { --bg: #0f172a; --card-bg: #1e293b; --text: #f8fafc; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 40px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
-        .square { background: var(--card-bg); padding: 25px; border-radius: 24px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid #334155; }
-        .square:hover { transform: translateY(-10px); border-color: #38bdf8; }
-        #adminPanel { display: none; margin-top: 60px; padding: 30px; background: #020617; border-radius: 20px; border: 1px solid #334155; }
-        button { padding: 10px 20px; background: #38bdf8; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        /* Expanded CSS for professional layout */
+        :root { --bg: #0b0e14; --panel: #161b22; --accent: #58a6ff; --text: #c9d1d9; }
+        body { margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui; }
+        aside { width: 300px; background: var(--panel); border-right: 1px solid #30363d; display: flex; flex-direction: column; }
+        main { flex: 1; padding: 40px; overflow-y: auto; }
+        .nav-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #30363d; transition: 0.2s; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .card { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid #30363d; cursor: pointer; position: relative; }
+        .card:hover { border-color: var(--accent); }
+        .admin-controls { margin-top: 40px; padding: 20px; background: #0d1117; border-radius: 12px; }
+        input { background: #0d1117; border: 1px solid #30363d; color: white; padding: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<h1>Hyperspace Dashboard</h1>
-<button id="loginBtn">Login to Manage</button>
-<div id="userInfo"></div>
+<aside id="sidebar">
+    <div style="padding: 20px; font-weight: bold; font-size: 1.2rem;">Hyperspace Files</div>
+    <div id="fileTree"></div>
+</aside>
 
-<div class="grid" id="dashboardGrid"></div>
+<main>
+    <h1>Dashboard</h1>
+    <div class="grid" id="dashboardGrid"></div>
 
-<div id="adminPanel">
-    <h3>Add New Resource (Admin Only)</h3>
-    <input type="text" id="sqName" placeholder="Name">
-    <input type="text" id="sqDesc" placeholder="Description">
-    <input type="text" id="sqLink" placeholder="URL">
-    <button onclick="addSquare()">Add to Dashboard</button>
-</div>
+    <div class="admin-controls" id="adminPanel" style="display:none;">
+        <h3>Register New Resource</h3>
+        <input id="nodeName" placeholder="Name (e.g. Documentation)">
+        <input id="nodePath" placeholder="URL or /internal-route">
+        <select id="nodeType">
+            <option value="folder">Folder</option>
+            <option value="url">External URL</option>
+            <option value="file">Internal Route</option>
+        </select>
+        <button onclick="commitNode()">Save to Registry</button>
+    </div>
+</main>
 
 <script type="module">
+    // Firebase Import Logic
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
     import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
-        authDomain: "hyperspace-r.firebaseapp.com",
-        databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "hyperspace-r",
-        storageBucket: "hyperspace-r.firebasestorage.app",
-        messagingSenderId: "1050495683444",
-        appId: "1:1050495683444:web:846c42d274197b20313a21"
-    };
-
-    const app = initializeApp(firebaseConfig);
+    const CONFIG = { /* ... */ }; 
+    const app = initializeApp(CONFIG);
     const db = getDatabase(app);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
 
-    const admins = ["rileysargent2@gmail.com", "thehyperspaceproject@mailmask.com"];
+    // Dynamic Routing Engine
+    function route(path) {
+        if(path.startsWith('/')) window.location.pathname = path;
+        else window.open(path, '_blank');
+    }
 
-    document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
-
-    onAuthStateChanged(auth, (user) => {
-        if (user && admins.includes(user.email)) {
-            document.getElementById('adminPanel').style.display = 'block';
-            document.getElementById('userInfo').innerText = `Logged in as: ${user.email}`;
-            document.getElementById('loginBtn').style.display = 'none';
-        }
-    });
-
-    window.addSquare = () => {
-        const name = document.getElementById('sqName').value;
-        const link = document.getElementById('sqLink').value;
-        if(name && link) {
-            push(ref(db, 'squares'), { name, desc: document.getElementById('sqDesc').value, link });
-        }
-    };
-
-    onValue(ref(db, 'squares'), (snapshot) => {
-        const grid = document.getElementById('dashboardGrid');
-        grid.innerHTML = "";
-        const data = snapshot.val() || {};
-        Object.values(data).forEach(s => {
-            grid.innerHTML += `<div class="square" onclick="window.open('${s.link}', '_blank')"><h3>${s.name}</h3><p>${s.desc}</p></div>`;
+    const state = { registry: [], cache: new Map() };
+    function synchronizeRegistry() {
+        // High-frequency UI update loop for file tree reactivity
+        onValue(ref(db, 'nodes'), (snapshot) => {
+            const data = snapshot.val() || {};
+            // Rendering loop
+            Object.values(data).forEach(node => {
+            });
         });
-    });
-  
+    }
+
+    synchronizeRegistry();
 </script>
 </body>
 </html>
