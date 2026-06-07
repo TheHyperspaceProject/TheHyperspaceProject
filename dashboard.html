@@ -4,50 +4,87 @@
     <meta charset="UTF-8">
     <title>The Hyperspace Project - Dashboard</title>
     <style>
-        body { background: #0b0e14; color: #c9d1d9; font-family: sans-serif; padding: 20px; }
-        .error-banner { background: #880808; color: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; display: none; }
+        :root { --bg: #0b0e14; --panel: #161b22; --accent: #38bdf8; --text: #e2e8f0; --danger: #ef4444; }
+        body { margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+        aside { width: 300px; background: var(--panel); border-right: 1px solid #30363d; padding: 20px; overflow-y: auto; }
+        main { flex: 1; padding: 40px; overflow-y: auto; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .card { background: var(--panel); padding: 20px; border-radius: 16px; border: 1px solid #30363d; }
+        input, select { width: 100%; padding: 10px; margin-bottom: 10px; background: #0d1117; border: 1px solid #30363d; color: white; border-radius: 6px; box-sizing: border-box; }
+        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-right: 5px; font-weight: bold; }
+        .admin-section { margin-top: 50px; padding: 20px; background: #0d1117; border-radius: 12px; }
     </style>
 </head>
 <body>
 
-<div id="status" class="error-banner"></div>
-<h1>Hyperspace Dashboard</h1>
-<div id="dashboardGrid"></div>
+<aside>
+    <h3>Registry & Blacklist</h3>
+    <input id="searchBar" placeholder="Filter items..." onkeyup="refreshUI()">
+    <div id="blacklistDisplay"><h4>Banned Domains</h4></div>
+</aside>
+
+<main>
+    <h1>The Hyperspace Project - Dashboard</h1>
+    <div class="grid" id="dashboardGrid"></div>
+
+    <div id="adminPanel" class="admin-section" style="display:none;">
+        <h3>Registry Management</h3>
+        <input id="nName" placeholder="Resource Name">
+        <input id="nLink" placeholder="URL">
+        <button onclick="addNode()">Register Item</button>
+    </div>
+</main>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
-    const statusDiv = document.getElementById('status');
+    const config = { /* YOUR CONFIG HERE */ };
+    const db = getDatabase(initializeApp(config));
+    let routes = {}, blacklist = {};
 
-    function showError(msg) {
-        statusDiv.innerText = "SYSTEM ERROR: " + msg;
-        statusDiv.style.display = 'block';
-    }
+    onValue(ref(db, 'routes'), (snap) => { routes = snap.val() || {}; refreshUI(); });
+    onValue(ref(db, 'blacklist'), (snap) => { blacklist = snap.val() || {}; refreshUI(); });
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
-        authDomain: "hyperspace-r.firebaseapp.com",
-        databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "hyperspace-r",
-        storageBucket: "hyperspace-r.firebasestorage.app",
-        messagingSenderId: "1050495683444",
-        appId: "1:1050495683444:web:846c42d274197b20313a21"
+    window.refreshUI = () => {
+        const query = document.getElementById('searchBar').value.toLowerCase();
+        const grid = document.getElementById('dashboardGrid');
+        const bList = document.getElementById('blacklistDisplay');
+        grid.innerHTML = ""; bList.innerHTML = "<h4>Banned Domains</h4>";
+        
+        // Render Routes
+        Object.entries(routes || {}).filter(([id, item]) => item.name.toLowerCase().includes(query))
+            .sort((a,b) => a[1].name.localeCompare(b[1].name))
+            .forEach(([id, item]) => {
+                grid.innerHTML += `<div class="card"><h3>${item.name}</h3>
+                    <button onclick="window.open('${item.link}')">Visit</button>
+                    <button onclick="deleteNode('${id}')" style="background:var(--danger)">Delete</button>
+                    <button onclick="banNode('${item.link}')">Ban</button></div>`;
+            });
+
+        // Render Blacklist
+        Object.entries(blacklist || {}).forEach(([id, item]) => {
+            bList.innerHTML += `<div>${item.link} <button onclick="unbanNode('${id}')">Unban</button></div>`;
+        });
     };
 
-    try {
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-        
-        onValue(ref(db, 'routes'), (snapshot) => {
-            console.log("Database connected!");
-            // If it reaches here, it works!
-        }, (error) => {
-            showError(error.message);
-        });
-    } catch (e) {
-        showError(e.message);
-    }
+    window.addNode = () => {
+        const name = document.getElementById('nName').value;
+        const link = document.getElementById('nLink').value;
+        if(Object.values(blacklist).find(b => b.link === link)) return alert("Domain is banned!");
+        push(ref(db, 'routes'), { name, link });
+    };
+
+    window.deleteNode = (id) => remove(ref(db, 'routes/' + id));
+    window.banNode = (link) => push(ref(db, 'blacklist'), { link });
+    window.unbanNode = (id) => remove(ref(db, 'blacklist/' + id));
+
+    onAuthStateChanged(getAuth(), (user) => {
+        if(user && ["rileysargent2@gmail.com", "thehyperspaceproject@mailmask.com"].includes(user.email)) {
+            document.getElementById('adminPanel').style.display = 'block';
+        }
+    });
 </script>
 </body>
 </html>
