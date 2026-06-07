@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Hyperspace Project Dashboard</title>
+    <style>
+        :root { --bg: #0f172a; --card-bg: #1e293b; --text: #f8fafc; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 40px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .square { background: var(--card-bg); padding: 25px; border-radius: 24px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); text-align: center; cursor: pointer; transition: 0.3s; border: 1px solid #334155; }
+        .square:hover { transform: translateY(-10px); border-color: #38bdf8; }
+        #adminPanel { display: none; margin-top: 60px; padding: 30px; background: #020617; border-radius: 20px; border: 1px solid #334155; }
+        button { padding: 10px 20px; background: #38bdf8; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<h1>Hyperspace Dashboard</h1>
+<button id="loginBtn">Login to Manage</button>
+<div id="userInfo"></div>
+
+<div class="grid" id="dashboardGrid"></div>
+
+<div id="adminPanel">
+    <h3>Add New Resource (Admin Only)</h3>
+    <input type="text" id="sqName" placeholder="Name">
+    <input type="text" id="sqDesc" placeholder="Description">
+    <input type="text" id="sqLink" placeholder="URL">
+    <button onclick="addSquare()">Add to Dashboard</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
+        authDomain: "hyperspace-r.firebaseapp.com",
+        databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "hyperspace-r",
+        storageBucket: "hyperspace-r.firebasestorage.app",
+        messagingSenderId: "1050495683444",
+        appId: "1:1050495683444:web:846c42d274197b20313a21"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    const admins = ["rileysargent2@gmail.com", "thehyperspaceproject@mailmask.com"];
+
+    document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
+
+    onAuthStateChanged(auth, (user) => {
+        if (user && admins.includes(user.email)) {
+            document.getElementById('adminPanel').style.display = 'block';
+            document.getElementById('userInfo').innerText = `Logged in as: ${user.email}`;
+            document.getElementById('loginBtn').style.display = 'none';
+        }
+    });
+
+    window.addSquare = () => {
+        const name = document.getElementById('sqName').value;
+        const link = document.getElementById('sqLink').value;
+        if(name && link) {
+            push(ref(db, 'squares'), { name, desc: document.getElementById('sqDesc').value, link });
+        }
+    };
+
+    onValue(ref(db, 'squares'), (snapshot) => {
+        const grid = document.getElementById('dashboardGrid');
+        grid.innerHTML = "";
+        const data = snapshot.val() || {};
+        Object.values(data).forEach(s => {
+            grid.innerHTML += `<div class="square" onclick="window.open('${s.link}', '_blank')"><h3>${s.name}</h3><p>${s.desc}</p></div>`;
+        });
+    });
+  
+</script>
+</body>
+</html>
