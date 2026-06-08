@@ -2,89 +2,107 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>The Hyperspace Project - Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
     <style>
-        :root { --bg: #0b0e14; --panel: #161b22; --accent: #38bdf8; --text: #e2e8f0; --danger: #ef4444; }
-        body { margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
-        aside { width: 300px; background: var(--panel); border-right: 1px solid #30363d; padding: 20px; overflow-y: auto; }
-        main { flex: 1; padding: 40px; overflow-y: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
-        .card { background: var(--panel); padding: 20px; border-radius: 16px; border: 1px solid #30363d; }
-        input, select { width: 100%; padding: 10px; margin-bottom: 10px; background: #0d1117; border: 1px solid #30363d; color: white; border-radius: 6px; box-sizing: border-box; }
-        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-right: 5px; font-weight: bold; }
-        .admin-section { margin-top: 50px; padding: 20px; background: #0d1117; border-radius: 12px; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc; --error: #ef4444; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 10; }
+        .auth-box { background: var(--card); padding: 2rem; border-radius: 1rem; text-align: center; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; width: 90%; max-width: 1000px; margin-top: 3rem; }
+        .card { background: var(--card); padding: 1.5rem; border-radius: 1rem; color: var(--text); text-decoration: none; border: 1px solid #334155; transition: 0.2s; text-align: center; }
+        .card:hover { border-color: var(--accent); transform: translateY(-4px); }
+        button { cursor: pointer; background: var(--accent); color: var(--bg); border: none; padding: 0.8rem 1.5rem; border-radius: 0.5rem; font-weight: bold; margin: 5px; }
+        #error-toast { position: fixed; bottom: 20px; right: 20px; background: var(--error); color: white; padding: 1rem 2rem; border-radius: 8px; display: none; z-index: 1000; }
     </style>
 </head>
 <body>
 
-<aside>
-    <h3>Registry & Blacklist</h3>
-    <input id="searchBar" placeholder="Filter items..." onkeyup="refreshUI()">
-    <div id="blacklistDisplay"><h4>Banned Domains</h4></div>
-</aside>
+    <div id="error-toast"></div>
 
-<main>
-    <h1>The Hyperspace Project - Dashboard</h1>
-    <div class="grid" id="dashboardGrid"></div>
-
-    <div id="adminPanel" class="admin-section" style="display:none;">
-        <h3>Registry Management</h3>
-        <input id="nName" placeholder="Resource Name">
-        <input id="nLink" placeholder="URL">
-        <button onclick="addNode()">Register Item</button>
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <h2>Hyperspace Access</h2>
+            <button id="loginBtn">Sign in with Google</button>
+        </div>
     </div>
-</main>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-    import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    <div id="adminPanel" style="display:none;">
+        <button id="addLinkBtn">+ Add New Link</button>
+        <button onclick="location.reload()" style="background:#64748b;">Logout</button>
+    </div>
+    
+    <div class="grid" id="linkGrid"></div>
 
-    const config = { /* YOUR CONFIG HERE */ };
-    const db = getDatabase(initializeApp(config));
-    let routes = {}, blacklist = {};
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+        import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
-    onValue(ref(db, 'routes'), (snap) => { routes = snap.val() || {}; refreshUI(); });
-    onValue(ref(db, 'blacklist'), (snap) => { blacklist = snap.val() || {}; refreshUI(); });
+        const firebaseConfig = {
+            apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
+            authDomain: "hyperspace-r.firebaseapp.com",
+            databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "hyperspace-r",
+            storageBucket: "hyperspace-r.firebasestorage.app",
+            messagingSenderId: "1050495683444",
+            appId: "1:1050495683444:web:a4c9ab26ae4b7d6a313a21"
+        };
 
-    window.refreshUI = () => {
-        const query = document.getElementById('searchBar').value.toLowerCase();
-        const grid = document.getElementById('dashboardGrid');
-        const bList = document.getElementById('blacklistDisplay');
-        grid.innerHTML = ""; bList.innerHTML = "<h4>Banned Domains</h4>";
-        
-        // Render Routes
-        Object.entries(routes || {}).filter(([id, item]) => item.name.toLowerCase().includes(query))
-            .sort((a,b) => a[1].name.localeCompare(b[1].name))
-            .forEach(([id, item]) => {
-                grid.innerHTML += `<div class="card"><h3>${item.name}</h3>
-                    <button onclick="window.open('${item.link}')">Visit</button>
-                    <button onclick="deleteNode('${id}')" style="background:var(--danger)">Delete</button>
-                    <button onclick="banNode('${item.link}')">Ban</button></div>`;
-            });
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+        const adminEmail = "rileysargent2@gmail.com";
 
-        // Render Blacklist
-        Object.entries(blacklist || {}).forEach(([id, item]) => {
-            bList.innerHTML += `<div>${item.link} <button onclick="unbanNode('${id}')">Unban</button></div>`;
-        });
-    };
-
-    window.addNode = () => {
-        const name = document.getElementById('nName').value;
-        const link = document.getElementById('nLink').value;
-        if(Object.values(blacklist).find(b => b.link === link)) return alert("Domain is banned!");
-        push(ref(db, 'routes'), { name, link });
-    };
-
-    window.deleteNode = (id) => remove(ref(db, 'routes/' + id));
-    window.banNode = (link) => push(ref(db, 'blacklist'), { link });
-    window.unbanNode = (id) => remove(ref(db, 'blacklist/' + id));
-
-    onAuthStateChanged(getAuth(), (user) => {
-        if(user && ["rileysargent2@gmail.com", "thehyperspaceproject@mailmask.com"].includes(user.email)) {
-            document.getElementById('adminPanel').style.display = 'block';
+        function showError(msg) {
+            const toast = document.getElementById('error-toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 5000);
         }
-    });
-</script>
+
+        // Popup Authentication
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (e) {
+                showError("Auth Error: " + e.message);
+                console.error("DEBUG:", e);
+            }
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            const overlay = document.getElementById('auth-overlay');
+            if (user && user.email === adminEmail) {
+                overlay.style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'block';
+            } else if (user) {
+                showError("Access Denied: Not an admin.");
+                overlay.style.display = 'flex';
+            }
+        });
+
+        onValue(ref(db, 'links'), (snapshot) => {
+            const grid = document.getElementById('linkGrid');
+            grid.innerHTML = '';
+            const data = snapshot.val();
+            for (let id in data) {
+                grid.innerHTML += `<a href="${data[id].url}" class="card"><h3>${data[id].name}</h3></a>`;
+            }
+        });
+
+        document.getElementById('addLinkBtn').addEventListener('click', async () => {
+            const name = prompt("Name:");
+            const url = prompt("URL:");
+            if (name && url) {
+                try {
+                    await push(ref(db, 'links'), { name, url });
+                } catch (e) {
+                    showError("Write failed: Check DB rules.");
+                }
+            }
+        });
+    </script>
 </body>
 </html>
