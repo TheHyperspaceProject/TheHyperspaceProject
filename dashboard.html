@@ -2,105 +2,77 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>Pulse | Dashboard</title>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc; --error: #ef4444; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 10; }
-        .auth-box { background: var(--card); padding: 2rem; border-radius: 1rem; text-align: center; border: 1px solid #334155; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.5rem; width: 90%; max-width: 1000px; margin-top: 3rem; }
-        .card { background: var(--card); padding: 1.5rem; border-radius: 1rem; color: var(--text); text-decoration: none; border: 1px solid #334155; transition: 0.2s; text-align: center; }
-        .card:hover { border-color: var(--accent); transform: translateY(-4px); }
-        button { cursor: pointer; background: var(--accent); color: var(--bg); border: none; padding: 0.8rem 1.5rem; border-radius: 0.5rem; font-weight: bold; margin: 5px; }
-        #error-toast { position: fixed; bottom: 20px; right: 20px; background: var(--error); color: white; padding: 1rem 2rem; border-radius: 8px; display: none; z-index: 1000; }
+        :root { --bg: #0f0f10; --card: rgba(30, 31, 32, 0.8); --text: #e3e3e3; --blue: #3367d6; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; height: 100vh; }
+        
+        aside { width: 280px; background: #18191a; padding: 20px; border-right: 1px solid #333; }
+        main { flex: 1; padding: 40px; overflow-y: auto; }
+        
+        .card { background: var(--card); backdrop-filter: blur(10px); padding: 24px; border-radius: 16px; border: 1px solid #333; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; background: #222; border: 1px solid #444; border-radius: 8px; color: white; margin: 10px 0; box-sizing: border-box; }
+        button { background: var(--blue); border: none; padding: 10px 20px; border-radius: 8px; color: white; cursor: pointer; }
+        
+        h2 { margin-top: 0; font-weight: 500; letter-spacing: -0.5px; }
+        .link-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-    <div id="error-toast"></div>
+    <aside>
+        <h2>Pulse Control</h2>
+        <div onclick="window.location.href='pulse.html'" style="cursor:pointer; padding: 10px; border-radius: 8px; background: #222;">Launch AI</div>
+    </aside>
 
-    <div id="auth-overlay">
-        <div class="auth-box">
-            <h2>Hyperspace Access</h2>
-            <button id="loginBtn">Sign in with Google</button>
+    <main>
+        <div class="card">
+            <h2>Quick Actions</h2>
+            <input type="text" id="link-input" placeholder="Enter URL/Data here...">
+            <button id="save-btn">Save to Dashboard</button>
         </div>
-    </div>
 
-    <div id="adminPanel" style="display:none;">
-        <button id="addLinkBtn">+ Add New Link</button>
-        <button onclick="location.reload()" style="background:#64748b;">Logout</button>
-    </div>
-    
-    <div class="grid" id="linkGrid"></div>
+        <div class="card">
+            <h2>Stored Links</h2>
+            <div id="link-list"></div>
+        </div>
+    </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-        import { getDatabase, ref, onValue, push } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 
-        const firebaseConfig = {
+        const app = initializeApp({
             apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
             authDomain: "hyperspace-r.firebaseapp.com",
             databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "hyperspace-r",
-            storageBucket: "hyperspace-r.firebasestorage.app",
-            messagingSenderId: "1050495683444",
-            appId: "1:1050495683444:web:a4c9ab26ae4b7d6a313a21"
-        };
+            projectId: "hyperspace-r"
+        });
 
-        const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
-        const adminEmail = "rileysargent2@gmail.com";
-
-        function showError(msg) {
-            const toast = document.getElementById('error-toast');
-            toast.innerText = msg;
-            toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 5000);
-        }
-
-        // Popup Authentication
-        document.getElementById('loginBtn').addEventListener('click', async () => {
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (e) {
-                showError("Auth Error: " + e.message);
-                console.error("DEBUG:", e);
-            }
-        });
+        const list = document.getElementById('link-list');
 
         onAuthStateChanged(auth, (user) => {
-            const overlay = document.getElementById('auth-overlay');
-            if (user && user.email === adminEmail) {
-                overlay.style.display = 'none';
-                document.getElementById('adminPanel').style.display = 'block';
-            } else if (user) {
-                showError("Access Denied: Not an admin.");
-                overlay.style.display = 'flex';
-            }
-        });
+            if (user) {
+                // Pointing to the specific 'links' node as required by rules
+                const linksRef = ref(db, `users/${user.uid}/links`);
+                
+                onValue(linksRef, (snap) => {
+                    list.innerHTML = '';
+                    Object.values(snap.val() || {}).forEach(item => {
+                        list.innerHTML += `<div class="link-item">${item.text}</div>`;
+                    });
+                });
 
-        onValue(ref(db, 'links'), (snapshot) => {
-            const grid = document.getElementById('linkGrid');
-            grid.innerHTML = '';
-            const data = snapshot.val();
-            for (let id in data) {
-                grid.innerHTML += `<a href="${data[id].url}" class="card"><h3>${data[id].name}</h3></a>`;
-            }
-        });
-
-        document.getElementById('addLinkBtn').addEventListener('click', async () => {
-            const name = prompt("Name:");
-            const url = prompt("URL:");
-            if (name && url) {
-                try {
-                    await push(ref(db, 'links'), { name, url });
-                } catch (e) {
-                    showError("Write failed: Check DB rules.");
-                }
+                document.getElementById('save-btn').onclick = () => {
+                    const val = document.getElementById('link-input').value;
+                    push(linksRef, { text: val, timestamp: Date.now() });
+                    document.getElementById('link-input').value = '';
+                };
+            } else {
+                console.error("Auth required.");
             }
         });
     </script>
