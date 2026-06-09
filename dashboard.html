@@ -2,79 +2,393 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Pulse | Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        :root { --bg: #0f0f10; --card: rgba(30, 31, 32, 0.8); --text: #e3e3e3; --blue: #3367d6; }
-        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; height: 100vh; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
         
-        aside { width: 280px; background: #18191a; padding: 20px; border-right: 1px solid #333; }
-        main { flex: 1; padding: 40px; overflow-y: auto; }
-        
-        .card { background: var(--card); backdrop-filter: blur(10px); padding: 24px; border-radius: 16px; border: 1px solid #333; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; background: #222; border: 1px solid #444; border-radius: 8px; color: white; margin: 10px 0; box-sizing: border-box; }
-        button { background: var(--blue); border: none; padding: 10px 20px; border-radius: 8px; color: white; cursor: pointer; }
-        
-        h2 { margin-top: 0; font-weight: 500; letter-spacing: -0.5px; }
-        .link-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        .logo-font {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+        }
+        .card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card:hover {
+            transform: translateY(-4px);
+        }
     </style>
 </head>
-<body>
-
-    <aside>
-        <h2>Pulse Control</h2>
-        <div onclick="window.location.href='pulse.html'" style="cursor:pointer; padding: 10px; border-radius: 8px; background: #222;">Launch AI</div>
-    </aside>
-
-    <main>
-        <div class="card">
-            <h2>Quick Actions</h2>
-            <input type="text" id="link-input" placeholder="Enter URL/Data here...">
-            <button id="save-btn">Save to Dashboard</button>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+    <div class="max-w-6xl mx-auto">
+        <!-- HEADER -->
+        <div class="border-b border-zinc-800 bg-zinc-900 py-6 px-8 flex items-center justify-between">
+            <div class="flex items-center gap-x-4">
+                <div class="w-9 h-9 bg-gradient-to-br from-violet-500 to-blue-500 rounded-2xl flex items-center justify-center text-white font-bold text-xl">H</div>
+                <div>
+                    <div class="logo-font text-3xl font-semibold tracking-tighter">Hyperspace</div>
+                    <div class="text-xs text-zinc-500 -mt-1">PROJECT DASHBOARD</div>
+                </div>
+            </div>
+            
+            <div id="user-info" class="hidden items-center gap-x-3">
+                <div id="user-email" class="text-sm text-zinc-400"></div>
+                <button onclick="logout()" class="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-sm flex items-center gap-x-2">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
         </div>
 
-        <div class="card">
-            <h2>Stored Links</h2>
-            <div id="link-list"></div>
-        </div>
-    </main>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-
-        const app = initializeApp({
-            apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
-            authDomain: "hyperspace-r.firebaseapp.com",
-            databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "hyperspace-r"
-        });
-
-        const db = getDatabase(app);
-        const auth = getAuth(app);
-        const list = document.getElementById('link-list');
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                // Pointing to the specific 'links' node as required by rules
-                const linksRef = ref(db, `users/${user.uid}/links`);
+        <!-- LOGIN / REGISTER SCREEN -->
+        <div id="auth-screen" class="min-h-[calc(100vh-80px)] flex items-center justify-center p-8">
+            <div class="glass border border-zinc-700 max-w-md w-full rounded-3xl p-10">
+                <div class="text-center mb-10">
+                    <div class="logo-font text-5xl mb-2">Hyperspace</div>
+                    <p class="text-zinc-400">Project Resources</p>
+                </div>
                 
-                onValue(linksRef, (snap) => {
-                    list.innerHTML = '';
-                    Object.values(snap.val() || {}).forEach(item => {
-                        list.innerHTML += `<div class="link-item">${item.text}</div>`;
-                    });
-                });
+                <button onclick="googleSignIn()" 
+                    class="w-full py-4 bg-white text-zinc-900 rounded-2xl flex items-center justify-center gap-x-3 mb-6 font-medium">
+                    <i class="fa-brands fa-google"></i>
+                    Sign in with Google
+                </button>
+                
+                <div class="relative my-6">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-zinc-700"></div>
+                    </div>
+                    <div class="relative flex justify-center text-xs uppercase">
+                        <span class="bg-zinc-900 px-4 text-zinc-500">or</span>
+                    </div>
+                </div>
+                
+                <!-- LOGIN FORM -->
+                <div id="login-form">
+                    <input id="login-email" type="email" placeholder="Email" 
+                        class="w-full bg-zinc-900 border border-zinc-700 focus:border-violet-400 rounded-2xl px-6 py-4 mb-4 outline-none">
+                    <input id="login-password" type="password" placeholder="Password" 
+                        class="w-full bg-zinc-900 border border-zinc-700 focus:border-violet-400 rounded-2xl px-6 py-4 mb-6 outline-none">
+                    <button onclick="emailLogin()" 
+                        class="w-full py-4 bg-violet-600 hover:bg-violet-500 rounded-2xl font-medium">Log In</button>
+                    <div onclick="switchToRegister()" class="text-center text-violet-300 mt-6 cursor-pointer text-sm">Don't have an account? Register</div>
+                </div>
+                
+                <!-- REGISTER FORM -->
+                <div id="register-form" class="hidden">
+                    <input id="reg-email" type="email" placeholder="Email" 
+                        class="w-full bg-zinc-900 border border-zinc-700 focus:border-violet-400 rounded-2xl px-6 py-4 mb-4 outline-none">
+                    <input id="reg-password" type="password" placeholder="Password" 
+                        class="w-full bg-zinc-900 border border-zinc-700 focus:border-violet-400 rounded-2xl px-6 py-4 mb-6 outline-none">
+                    <button onclick="emailRegister()" 
+                        class="w-full py-4 bg-violet-600 hover:bg-violet-500 rounded-2xl font-medium">Create Account</button>
+                    <div onclick="switchToLogin()" class="text-center text-violet-300 mt-6 cursor-pointer text-sm">Already have an account? Log In</div>
+                </div>
+            </div>
+        </div>
 
-                document.getElementById('save-btn').onclick = () => {
-                    const val = document.getElementById('link-input').value;
-                    push(linksRef, { text: val, timestamp: Date.now() });
-                    document.getElementById('link-input').value = '';
-                };
-            } else {
-                console.error("Auth required.");
+        <!-- DASHBOARD -->
+        <div id="dashboard" class="hidden p-8">
+            <div class="flex justify-between items-end mb-8">
+                <div>
+                    <h1 class="text-4xl font-semibold">Hyperspace Links</h1>
+                    <p class="text-zinc-400">Quick access to project resources</p>
+                </div>
+                <button onclick="showAddModal()" id="add-button"
+                    class="flex items-center gap-x-3 bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-2xl hidden">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Add New Link</span>
+                </button>
+            </div>
+
+            <!-- STATS -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="glass border border-zinc-700 rounded-3xl p-6">
+                    <div class="text-sm text-zinc-400">TOTAL LINKS</div>
+                    <div id="total-links" class="text-5xl font-semibold mt-2">0</div>
+                </div>
+                <div class="glass border border-zinc-700 rounded-3xl p-6">
+                    <div class="text-sm text-zinc-400">LAST UPDATED</div>
+                    <div id="last-updated" class="text-2xl font-medium mt-2">Just now</div>
+                </div>
+                <div class="glass border border-zinc-700 rounded-3xl p-6">
+                    <div class="text-sm text-zinc-400">YOUR ACCESS</div>
+                    <div id="access-level" class="text-emerald-400 font-medium mt-2">Full View</div>
+                </div>
+            </div>
+
+            <!-- LINKS GRID -->
+            <div id="links-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+    </div>
+
+    <!-- ADD / EDIT MODAL -->
+    <div id="link-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-[9999]">
+        <div class="glass border border-zinc-600 w-full max-w-lg rounded-3xl p-8">
+            <h2 id="modal-title" class="text-2xl font-semibold mb-6">Add New Link</h2>
+            
+            <input id="link-name" type="text" placeholder="Link Name (e.g. Design System)" 
+                class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-6 py-4 mb-4 outline-none">
+            
+            <input id="link-url" type="url" placeholder="https://example.com" 
+                class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-6 py-4 mb-4 outline-none">
+            
+            <textarea id="link-desc" rows="3" placeholder="Short description" 
+                class="w-full bg-zinc-900 border border-zinc-700 rounded-3xl px-6 py-4 outline-none"></textarea>
+            
+            <div class="flex gap-x-4 mt-8">
+                <button onclick="closeLinkModal()" 
+                    class="flex-1 py-4 border border-zinc-600 rounded-2xl">Cancel</button>
+                <button onclick="saveLink()" 
+                    class="flex-1 py-4 bg-violet-600 hover:bg-violet-500 rounded-2xl">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 bg-zinc-900 border border-violet-400 text-white px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-x-3 z-[99999]">
+        <span id="toast-text"></span>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyCr2mG-lVDHFwW4fTAx7_5AwZX2jJ8myrw",
+          authDomain: "hyperspace-r.firebaseapp.com",
+          databaseURL: "https://hyperspace-r-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "hyperspace-r",
+          storageBucket: "hyperspace-r.firebasestorage.app",
+          messagingSenderId: "1050495683444",
+          appId: "1:1050495683444:web:4a3c2b294542cb8d313a21",
+          measurementId: "G-XWKMZTBQZY"
+        };
+
+        let app, auth, db;
+        let currentUser = null;
+        let editingLinkId = null;
+
+        function initFirebase() {
+            if (app) return;
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.database();
+        }
+
+        function googleSignIn() {
+            initFirebase();
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider)
+                .then(result => {
+                    currentUser = result.user;
+                    handleAuthSuccess();
+                })
+                .catch(err => showToast("Google sign in failed"));
+        }
+
+        function emailLogin() {
+            initFirebase();
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-password').value;
+            if (!email || !pass) return showToast("Enter email and password");
+            
+            auth.signInWithEmailAndPassword(email, pass)
+                .then(result => {
+                    currentUser = result.user;
+                    handleAuthSuccess();
+                })
+                .catch(() => showToast("Invalid credentials"));
+        }
+
+        function emailRegister() {
+            initFirebase();
+            const email = document.getElementById('reg-email').value.trim();
+            const pass = document.getElementById('reg-password').value;
+            if (!email || !pass) return showToast("Enter email and password");
+            
+            auth.createUserWithEmailAndPassword(email, pass)
+                .then(result => {
+                    currentUser = result.user;
+                    handleAuthSuccess();
+                })
+                .catch(err => showToast(err.message));
+        }
+
+        function handleAuthSuccess() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('user-info').classList.remove('hidden');
+            document.getElementById('user-email').textContent = currentUser.email;
+            
+            const isAdmin = currentUser.email === "rileysargent2@gmail.com";
+            if (isAdmin) {
+                document.getElementById('add-button').classList.remove('hidden');
             }
-        });
+            
+            loadLinks();
+        }
+
+        function switchToRegister() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+        }
+
+        function switchToLogin() {
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+        }
+
+        function loadLinks() {
+            const grid = document.getElementById('links-grid');
+            grid.innerHTML = `<div class="col-span-3 text-center py-12 text-zinc-400">Loading resources...</div>`;
+            
+            db.ref('hyperspace/links').on('value', snapshot => {
+                const data = snapshot.val();
+                grid.innerHTML = '';
+                
+                let count = 0;
+                
+                if (!data) {
+                    grid.innerHTML = `<div class="col-span-3 text-center py-20 text-zinc-400">No links yet.</div>`;
+                    document.getElementById('total-links').textContent = '0';
+                    return;
+                }
+                
+                Object.keys(data).forEach(key => {
+                    const link = data[key];
+                    count++;
+                    
+                    const card = document.createElement('div');
+                    card.className = "glass border border-zinc-700 rounded-3xl p-6 card";
+                    card.innerHTML = `
+                        <div class="font-semibold text-xl mb-2">${link.name}</div>
+                        <a href="${link.url}" target="_blank" class="text-violet-400 hover:underline block mb-3 break-all">${link.url}</a>
+                        ${link.description ? `<p class="text-zinc-400 text-sm">${link.description}</p>` : ''}
+                        ${currentUser && currentUser.email === "rileysargent2@gmail.com" ? `
+                        <div class="flex gap-x-3 mt-6">
+                            <button onclick="editLink('${key}')" class="flex-1 py-2 text-sm border border-zinc-600 rounded-2xl">Edit</button>
+                            <button onclick="deleteLink('${key}')" class="flex-1 py-2 text-sm border border-red-900 text-red-400 rounded-2xl">Delete</button>
+                        </div>` : ''}
+                    `;
+                    grid.appendChild(card);
+                });
+                
+                document.getElementById('total-links').textContent = count;
+            });
+        }
+
+        function showAddModal() {
+            if (currentUser.email !== "rileysargent2@gmail.com") {
+                showToast("Only Riley can add links");
+                return;
+            }
+            editingLinkId = null;
+            document.getElementById('modal-title').textContent = "Add New Link";
+            document.getElementById('link-name').value = '';
+            document.getElementById('link-url').value = '';
+            document.getElementById('link-desc').value = '';
+            document.getElementById('link-modal').classList.remove('hidden');
+        }
+
+        function closeLinkModal() {
+            document.getElementById('link-modal').classList.add('hidden');
+        }
+
+        function saveLink() {
+            if (currentUser.email !== "rileysargent2@gmail.com") return;
+            
+            const name = document.getElementById('link-name').value.trim();
+            const url = document.getElementById('link-url').value.trim();
+            const desc = document.getElementById('link-desc').value.trim();
+            
+            if (!name || !url) {
+                showToast("Name and URL required");
+                return;
+            }
+            
+            const linkData = {
+                name,
+                url,
+                description: desc,
+                addedBy: currentUser.email,
+                timestamp: Date.now()
+            };
+            
+            if (editingLinkId) {
+                db.ref('hyperspace/links/' + editingLinkId).update(linkData).then(() => {
+                    showToast("Link updated");
+                    closeLinkModal();
+                });
+            } else {
+                db.ref('hyperspace/links').push(linkData).then(() => {
+                    showToast("Link added");
+                    closeLinkModal();
+                });
+            }
+        }
+
+        function editLink(key) {
+            if (currentUser.email !== "rileysargent2@gmail.com") return;
+            editingLinkId = key;
+            db.ref('hyperspace/links/' + key).once('value', snap => {
+                const link = snap.val();
+                document.getElementById('modal-title').textContent = "Edit Link";
+                document.getElementById('link-name').value = link.name;
+                document.getElementById('link-url').value = link.url;
+                document.getElementById('link-desc').value = link.description || '';
+                document.getElementById('link-modal').classList.remove('hidden');
+            });
+        }
+
+        function deleteLink(key) {
+            if (currentUser.email !== "rileysargent2@gmail.com") return;
+            if (confirm("Delete this link?")) {
+                db.ref('hyperspace/links/' + key).remove().then(() => showToast("Link deleted"));
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 2800);
+        }
+
+        function logout() {
+            if (auth) auth.signOut();
+            location.reload();
+        }
+
+        window.onload = function() {
+            initFirebase();
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    handleAuthSuccess();
+                }
+            });
+        };
+
+        window.googleSignIn = googleSignIn;
+        window.emailLogin = emailLogin;
+        window.emailRegister = emailRegister;
+        window.switchToRegister = switchToRegister;
+        window.switchToLogin = switchToLogin;
+        window.logout = logout;
+        window.showAddModal = showAddModal;
+        window.closeLinkModal = closeLinkModal;
+        window.saveLink = saveLink;
+        window.editLink = editLink;
+        window.deleteLink = deleteLink;
     </script>
-</body>
+</body>a
 </html>
